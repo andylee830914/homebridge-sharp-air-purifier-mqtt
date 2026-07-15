@@ -6,6 +6,12 @@ const {
 } = require("./humidifier-codec");
 const { parseUnknownProperties } = require("./unknown-properties-parser");
 
+const SPECIAL_OPERATION_MODES = [
+  { mode: "night", name: "Night Mode", subtype: "mode-night" },
+  { mode: "pollen", name: "Pollen Mode", subtype: "mode-pollen" },
+  { mode: "realize", name: "Realize Mode", subtype: "mode-realize" },
+];
+
 class SharpAirPurifierAccessory {
   constructor(platform) {
     this.platform = platform;
@@ -17,6 +23,7 @@ class SharpAirPurifierAccessory {
     this.temperatureService = null;
     this.airQualityService = null;
     this.humidifierService = null;
+    this.modeSwitchServices = {};
   }
 
   publishAccessory() {
@@ -111,17 +118,44 @@ class SharpAirPurifierAccessory {
       this.removeServiceIfPresent(accessory.getServiceById(this.api.hap.Service.HumidifierDehumidifier, "humidifier"));
     }
 
+    const modeSwitchServices = {};
+    if (this.platform.enableModeSwitches) {
+      for (const item of SPECIAL_OPERATION_MODES) {
+        const switchName = this.platform.modeSwitchNames[item.mode] || item.name;
+        const switchService = accessory.getServiceById(this.api.hap.Service.Switch, item.subtype)
+          || accessory.addService(this.api.hap.Service.Switch, switchName, item.subtype);
+        this.setServiceDisplayName(switchService, switchName);
+        switchService.getCharacteristic(this.api.hap.Characteristic.On)
+          .onSet((value) => this.setSpecialOperationMode(item.mode, value))
+          .onGet(() => this.platform.state.operationMode === item.mode);
+        modeSwitchServices[item.mode] = switchService;
+      }
+    } else {
+      for (const item of SPECIAL_OPERATION_MODES) {
+        this.removeServiceIfPresent(accessory.getServiceById(this.api.hap.Service.Switch, item.subtype));
+      }
+    }
+
     this.airService = airService;
     this.humidityService = humidityService;
     this.temperatureService = temperatureService;
     this.airQualityService = airQualityService;
     this.humidifierService = humidifierService;
+    this.modeSwitchServices = modeSwitchServices;
     this.pushStateToHomeKit();
   }
 
   removeServiceIfPresent(service) {
     if (service && this.accessory) {
       this.accessory.removeService(service);
+    }
+  }
+
+  setServiceDisplayName(service, name) {
+    const C = this.api.hap.Characteristic;
+    service.setCharacteristic(C.Name, name);
+    if (C.ConfiguredName) {
+      service.setCharacteristic(C.ConfiguredName, name);
     }
   }
 
@@ -211,6 +245,24 @@ class SharpAirPurifierAccessory {
       this.platform.state.airflow = "auto";
       return;
     }
+    if (mode === "night") {
+      this.platform.state.targetAirPurifierState = targetState.MANUAL;
+      this.platform.state.rotationSpeed = 25;
+      this.platform.state.airflow = "auto";
+      return;
+    }
+    if (mode === "pollen") {
+      this.platform.state.targetAirPurifierState = targetState.MANUAL;
+      this.platform.state.rotationSpeed = 60;
+      this.platform.state.airflow = "auto";
+      return;
+    }
+    if (mode === "realize") {
+      this.platform.state.targetAirPurifierState = targetState.MANUAL;
+      this.platform.state.rotationSpeed = 100;
+      this.platform.state.airflow = "auto";
+      return;
+    }
     if (mode === "auto") {
       this.platform.state.targetAirPurifierState = targetState.AUTO;
       this.platform.state.rotationSpeed = 100;
@@ -266,12 +318,30 @@ class SharpAirPurifierAccessory {
     this.pushStateToHomeKit();
   }
 
+  setSpecialOperationMode(mode, value) {
+    const enabled = value === true || Number(value) === 1;
+    const nextMode = enabled ? mode : "auto";
+
+    if (!enabled && this.platform.state.operationMode !== mode) {
+      this.pushStateToHomeKit();
+      return;
+    }
+
+    this.publishOperationMode(nextMode);
+    this.deriveAirState();
+    this.pushStateToHomeKit();
+  }
+
   publishOperationModeFromAirflow(airflowValue) {
     const mode = airflowToOperationMode(airflowValue);
     if (!mode) {
       return;
     }
 
+    this.publishOperationMode(mode);
+  }
+
+  publishOperationMode(mode) {
     const payload = buildOperationModeSetPayload({
       mode,
       lastRaw: this.platform.state.unknownRaw.unknown_F3 || this.platform.state.humidifierRaw,
@@ -473,6 +543,13 @@ class SharpAirPurifierAccessory {
       );
       if (typeof this.platform.state.humidity === "number" && Number.isFinite(this.platform.state.humidity)) {
         this.humidifierService.updateCharacteristic(C.CurrentRelativeHumidity, this.platform.state.humidity);
+      }
+    }
+
+    for (const item of SPECIAL_OPERATION_MODES) {
+      const service = this.modeSwitchServices[item.mode];
+      if (service) {
+        service.updateCharacteristic(C.On, this.platform.state.operationMode === item.mode);
       }
     }
   }

@@ -1,5 +1,6 @@
 {
   "name": "homebridge-sharp-air-purifier-mqtt",
+  "displayName": "Sharp Air Purifier MQTT",
   "version": "0.1.0",
   "description": "Homebridge plugin for Sharp air purifier via echonetlite2mqtt topics",
   "main": "index.js",

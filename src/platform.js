@@ -26,6 +26,12 @@ class SharpAirPurifierPlatform {
     this.enableTemperatureSensor = this.config.enableTemperatureSensor === true;
     this.enableAirQualitySensor = this.config.enableAirQualitySensor === true;
     this.enableHumidifierService = this.config.enableHumidifierService !== false;
+    this.enableModeSwitches = this.config.enableModeSwitches !== false;
+    this.modeSwitchNames = {
+      night: this.config.nightModeSwitchName || "Night Mode",
+      pollen: this.config.pollenModeSwitchName || "Pollen Mode",
+      realize: this.config.realizeModeSwitchName || "Realize Mode",
+    };
     this.unknownMapping = {
       humidifierF3Index: 15,
       humidifierF2Index: 24,

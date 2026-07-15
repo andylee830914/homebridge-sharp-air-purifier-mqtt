@@ -29,6 +29,9 @@ function createFakeApi() {
     TargetHumidifierDehumidifierState: {
       HUMIDIFIER: 1,
     },
+    ConfiguredName: {},
+    Name: {},
+    On: {},
   };
 
   return {
@@ -159,6 +162,45 @@ test("platform builds echonetlite2mqtt topics and refresh requests", () => {
   ]);
 });
 
+test("platform uses configurable special mode switch names", () => {
+  const api = createFakeApi();
+  const platform = new SharpAirPurifierPlatform(
+    { info() {}, warn() {} },
+    {
+      brokerUrl: "mqtt://example.test:1883",
+      deviceId: "device-1",
+      nightModeSwitchName: "Sleep",
+      pollenModeSwitchName: "Allergy",
+      realizeModeSwitchName: "Realize Boost",
+    },
+    api,
+  );
+
+  assert.deepEqual(platform.modeSwitchNames, {
+    night: "Sleep",
+    pollen: "Allergy",
+    realize: "Realize Boost",
+  });
+});
+
+test("platform provides default special mode switch names", () => {
+  const api = createFakeApi();
+  const platform = new SharpAirPurifierPlatform(
+    { info() {}, warn() {} },
+    {
+      brokerUrl: "mqtt://example.test:1883",
+      deviceId: "device-1",
+    },
+    api,
+  );
+
+  assert.deepEqual(platform.modeSwitchNames, {
+    night: "Night Mode",
+    pollen: "Pollen Mode",
+    realize: "Realize Mode",
+  });
+});
+
 test("air purifier active control publishes operationStatus/set", () => {
   const { accessory, publishes } = createPlatform();
 
@@ -210,6 +252,26 @@ test("humidifier control publishes unknown_F3/set without custom payload config"
   assert.equal(publishes[1].topic, platform.topics.humidifierSet);
   assert.equal(publishes[1].payload.slice(0, 8), "00090000");
   assert.equal(byteAt(publishes[1].payload, 15), 0x00);
+});
+
+test("special mode switches publish only night, pollen, realize modes", () => {
+  const { accessory, platform, publishes } = createPlatform();
+  platform.state.humidifierEnabled = true;
+
+  accessory.setSpecialOperationMode("night", true);
+  accessory.setSpecialOperationMode("pollen", true);
+  accessory.setSpecialOperationMode("realize", true);
+  accessory.setSpecialOperationMode("realize", false);
+
+  const payloads = publishes.map((entry) => entry.payload);
+  assert.deepEqual(publishes.map((entry) => entry.topic), [
+    platform.topics.humidifierSet,
+    platform.topics.humidifierSet,
+    platform.topics.humidifierSet,
+    platform.topics.humidifierSet,
+  ]);
+  assert.deepEqual(payloads.map((payload) => byteAt(payload, 4)), [0x11, 0x13, 0x40, 0x10]);
+  assert.deepEqual(payloads.map((payload) => byteAt(payload, 15)), [0xff, 0xff, 0xff, 0xff]);
 });
 
 test("echonetlite2mqtt state topics update HomeKit-facing state", () => {

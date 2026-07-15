@@ -67,6 +67,27 @@
         "type": "boolean",
         "description": "Uses the COCORO Air-compatible unknown_F3 0009 command family for humidifier ON/OFF.",
         "default": true
+      },
+      "enableModeSwitches": {
+        "title": "Expose Special Mode Switches",
+        "type": "boolean",
+        "description": "Expose Night, Pollen, and Realize modes as separate HomeKit switches.",
+        "default": true
+      },
+      "nightModeSwitchName": {
+        "title": "Night Mode Switch Name",
+        "type": "string",
+        "default": "Night Mode"
+      },
+      "pollenModeSwitchName": {
+        "title": "Pollen Mode Switch Name",
+        "type": "string",
+        "default": "Pollen Mode"
+      },
+      "realizeModeSwitchName": {
+        "title": "Realize Mode Switch Name",
+        "type": "string",
+        "default": "Realize Mode"
       }
     },
     "required": [
