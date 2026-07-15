@@ -1,7 +1,13 @@
 # homebridge-sharp-air-purifier-mqtt
 
-Homebridge platform plugin for Sharp air purifiers exposed through
-`echonetlite2mqtt`.
+Homebridge platform plugin for Sharp air purifiers that directly controls the
+device using the local ECHONET Lite protocol through
+[`echonetlite2mqtt`](https://github.com/banban525/echonetlite2mqtt).
+
+This plugin is designed for local LAN control. It talks to your air purifier
+through [`echonetlite2mqtt`](https://github.com/banban525/echonetlite2mqtt) and
+MQTT, so it does not require the Cocoro Air cloud API, Cocoro Air credentials,
+or internet access after your local network is set up.
 
 It creates one HomeKit accessory with an `AirPurifier` service, optional
 humidity/temperature sensors, and optional humidifier control.
@@ -10,8 +16,10 @@ humidity/temperature sensors, and optional humidifier control.
 
 - Homebridge 1.6+
 - Node.js 18+
-- A running `echonetlite2mqtt` instance
+- A running [`echonetlite2mqtt`](https://github.com/banban525/echonetlite2mqtt) instance
 - MQTT broker reachable from Homebridge
+
+No Cocoro Air API token, cloud account, or remote service is required.
 
 This plugin was tested with a Sharp `airCleaner` device whose MQTT base topic
 looks like:
