@@ -87,9 +87,6 @@ class SharpAirPurifierAccessory {
 
       airQualityService.getCharacteristic(this.api.hap.Characteristic.PM2_5Density)
         .onGet(() => this.getRequiredNumber(this.platform.state.pm25));
-
-      airQualityService.getCharacteristic(this.api.hap.Characteristic.PM10Density)
-        .onGet(() => this.getRequiredNumber(this.platform.state.pm10));
     } else {
       this.removeServiceIfPresent(accessory.getService(this.api.hap.Service.AirQualitySensor));
     }
@@ -218,6 +215,7 @@ class SharpAirPurifierAccessory {
     this.platform.state.pciSensor = parsed.derived.pciSensor ?? this.platform.state.pciSensor;
     this.platform.state.filterUsage = parsed.derived.filterUsage ?? this.platform.state.filterUsage;
     this.platform.state.dust = parsed.derived.dust ?? this.platform.state.dust;
+    this.platform.state.pm25 = parsed.derived.pm25 ?? this.platform.state.pm25;
     this.platform.state.smell = parsed.derived.smell ?? this.platform.state.smell;
     if (parsed.derived.humidifierEnabled != null) {
       this.platform.state.humidifierEnabled = parsed.derived.humidifierEnabled;
@@ -523,9 +521,6 @@ class SharpAirPurifierAccessory {
       this.airQualityService.updateCharacteristic(C.AirQuality, this.getAirQualityLevel());
       if (typeof this.platform.state.pm25 === "number" && Number.isFinite(this.platform.state.pm25)) {
         this.airQualityService.updateCharacteristic(C.PM2_5Density, this.platform.state.pm25);
-      }
-      if (typeof this.platform.state.pm10 === "number" && Number.isFinite(this.platform.state.pm10)) {
-        this.airQualityService.updateCharacteristic(C.PM10Density, this.platform.state.pm10);
       }
     }
 

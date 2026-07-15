@@ -89,7 +89,6 @@ function createPlatform(overrides = {}) {
       dust: null,
       smell: null,
       pm25: null,
-      pm10: null,
       humidifierEnabled: false,
       humidifierRaw: null,
       unknownRaw: {
@@ -159,6 +158,31 @@ test("platform builds echonetlite2mqtt topics and refresh requests", () => {
     { topic: "echonetlite2mqtt/elapi/v2/devices/device-1/properties/unknown_F3/request", payload: "" },
     { topic: "echonetlite2mqtt/elapi/v2/devices/device-1/properties/unknown_FC/request", payload: "" },
     { topic: "echonetlite2mqtt/elapi/v2/devices/device-1/properties/unknown_FD/request", payload: "" },
+  ]);
+});
+
+test("platform requests unknown_F1 during sensor refresh", () => {
+  const api = createFakeApi();
+  const platform = new SharpAirPurifierPlatform(
+    { info() {}, warn() {} },
+    {
+      brokerUrl: "mqtt://example.test:1883",
+      deviceId: "device-1",
+      topicPrefix: "echonetlite2mqtt/elapi/v2/devices/",
+    },
+    api,
+  );
+  const publishes = [];
+  platform.mqttClient = {
+    publish(topic, payload) {
+      publishes.push({ topic, payload });
+    },
+  };
+
+  platform.publishSensorRefresh();
+
+  assert.deepEqual(publishes, [
+    { topic: "echonetlite2mqtt/elapi/v2/devices/device-1/properties/unknown_F1/request", payload: "" },
   ]);
 });
 
@@ -293,6 +317,7 @@ test("echonetlite2mqtt state topics update HomeKit-facing state", () => {
   assert.equal(platform.state.rotationSpeed, 25);
   assert.equal(platform.state.temperature, 25);
   assert.equal(platform.state.humidity, 55);
+  assert.equal(platform.state.pm25, 0);
   assert.equal(platform.state.operationMode, "silent");
   assert.equal(platform.state.humidifierEnabled, true);
 });

@@ -27,6 +27,7 @@ class SharpAirPurifierPlatform {
     this.enableAirQualitySensor = this.config.enableAirQualitySensor === true;
     this.enableHumidifierService = this.config.enableHumidifierService !== false;
     this.enableModeSwitches = this.config.enableModeSwitches !== false;
+    this.refreshIntervalSeconds = this.normalizeRefreshInterval(this.config.refreshIntervalSeconds);
     this.modeSwitchNames = {
       night: this.config.nightModeSwitchName || "Night Mode",
       pollen: this.config.pollenModeSwitchName || "Pollen Mode",
@@ -40,6 +41,7 @@ class SharpAirPurifierPlatform {
 
     this.cachedAccessories = [];
     this.mqttClient = null;
+    this.refreshTimer = null;
 
     this.state = {
       operationStatus: false,
@@ -54,7 +56,6 @@ class SharpAirPurifierPlatform {
       dust: null,
       smell: null,
       pm25: null,
-      pm10: null,
       humidifierEnabled: false,
       humidifierRaw: null,
       unknownRaw: {
@@ -97,6 +98,17 @@ class SharpAirPurifierPlatform {
     this.cachedAccessories.push(accessory);
   }
 
+  normalizeRefreshInterval(value) {
+    if (value == null) {
+      return 60;
+    }
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return 60;
+    }
+    return seconds;
+  }
+
   connectMqtt() {
     const options = {
       clientId: this.clientId,
@@ -121,6 +133,7 @@ class SharpAirPurifierPlatform {
 
       this.mqttClient.subscribe(topics);
       this.publishRequestRefresh();
+      this.startRefreshTimer();
       this.accessory.publishAccessory();
     });
 
@@ -144,6 +157,31 @@ class SharpAirPurifierPlatform {
     this.publish(`${this.topics.unknownFDState}/request`, "");
   }
 
+  publishSensorRefresh() {
+    this.publish(`${this.topics.unknownF1State}/request`, "");
+  }
+
+  startRefreshTimer() {
+    this.stopRefreshTimer();
+    if (this.refreshIntervalSeconds <= 0) {
+      return;
+    }
+    this.refreshTimer = setInterval(() => {
+      this.publishSensorRefresh();
+    }, this.refreshIntervalSeconds * 1000);
+    if (this.refreshTimer.unref) {
+      this.refreshTimer.unref();
+    }
+  }
+
+  stopRefreshTimer() {
+    if (!this.refreshTimer) {
+      return;
+    }
+    clearInterval(this.refreshTimer);
+    this.refreshTimer = null;
+  }
+
   publish(topic, payload) {
     if (!this.mqttClient) {
       return;
@@ -152,6 +190,7 @@ class SharpAirPurifierPlatform {
   }
 
   disconnectMqtt() {
+    this.stopRefreshTimer();
     if (!this.mqttClient) {
       return;
     }

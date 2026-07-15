@@ -67,6 +67,7 @@ function parseF1(raw, mapping) {
       filterUsage: bytes.length >= 25
         ? ((bytes[21] << 24) | (bytes[22] << 16) | (bytes[23] << 8) | bytes[24]) >>> 0
         : null,
+      pm25: bytes.length >= 29 ? bytes[28] : null,
       dust: bytes.length >= 31 ? u16be(bytes, 29) : null,
       smell: bytes.length >= 33 ? u16be(bytes, 31) : null,
       humidityFilter: bytes.length >= 37 ? u16be(bytes, 35) : null,
@@ -215,6 +216,7 @@ function parseUnknownProperties(rawMap, mappingOverrides = {}) {
       temperatureC: f1.mapped?.temperatureC ?? null,
       humidityPercent: f1.mapped?.humidityPercent ?? null,
       dust: f1.mapped?.dust ?? null,
+      pm25: f1.mapped?.pm25 ?? null,
       smell: f1.mapped?.smell ?? null,
       pciSensor: f1.mapped?.pciSensor ?? null,
       filterUsage: f1.mapped?.filterUsage ?? null,

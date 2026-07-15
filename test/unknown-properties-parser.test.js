@@ -18,6 +18,17 @@ test("derives temperature and humidity from unknown_F1", () => {
 
   assert.equal(parsed.derived.temperatureC, 25);
   assert.equal(parsed.derived.humidityPercent, 55);
+  assert.equal(parsed.derived.pm25, 0);
+});
+
+test("derives PM2.5 from Sharp unknown_F1 byte 28", () => {
+  const parsed = parseUnknownProperties({
+    unknown_F1: "6201011f3b060000f00000001e30c23c4f000002d000332df00000000307d407d400000043430082",
+  });
+
+  assert.equal(parsed.derived.temperatureC, 31);
+  assert.equal(parsed.derived.humidityPercent, 59);
+  assert.equal(parsed.derived.pm25, 3);
 });
 
 test("derives operation mode and humidifier state from unknown_F3", () => {

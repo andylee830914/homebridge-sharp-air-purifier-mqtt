@@ -59,8 +59,15 @@
       "enableAirQualitySensor": {
         "title": "Expose Air Quality Sensor",
         "type": "boolean",
-        "description": "Reserved for verified PM mappings. Disabled by default.",
+        "description": "Expose PM2.5 using Sharp unknown_F1 byte 28. Disabled by default.",
         "default": false
+      },
+      "refreshIntervalSeconds": {
+        "title": "Sensor Refresh Interval",
+        "type": "number",
+        "description": "Seconds between unknown_F1 refresh requests for PM2.5, humidity, and temperature. Set to 0 to disable polling.",
+        "minimum": 0,
+        "default": 60
       },
       "enableHumidifierService": {
         "title": "Expose HumidifierDehumidifier",

@@ -51,6 +51,7 @@ npm install -g /path/to/homebridge-sharp-air-purifier-mqtt-0.1.0.tgz
       "enableHumiditySensor": true,
       "enableTemperatureSensor": false,
       "enableAirQualitySensor": false,
+      "refreshIntervalSeconds": 60,
       "enableHumidifierService": true,
       "enableModeSwitches": true,
       "nightModeSwitchName": "Night Mode",
@@ -73,33 +74,13 @@ npm install -g /path/to/homebridge-sharp-air-purifier-mqtt-0.1.0.tgz
 | `accessoryName` | `Sharp Air Purifier` | Name shown in HomeKit. |
 | `enableHumiditySensor` | `true` | Reads humidity from Sharp `unknown_F1`. |
 | `enableTemperatureSensor` | `false` | Reads temperature from Sharp `unknown_F1`. |
-| `enableAirQualitySensor` | `false` | Reserved until PM mapping is verified. |
+| `enableAirQualitySensor` | `false` | Reads PM2.5 from Sharp `unknown_F1` byte 28. |
+| `refreshIntervalSeconds` | `60` | Requests `unknown_F1` on this interval for PM2.5, humidity, and temperature. Set to `0` to disable polling. |
 | `enableHumidifierService` | `true` | Exposes humidifier ON/OFF control. |
 | `enableModeSwitches` | `true` | Exposes Night, Pollen, and Realize mode switches. |
 | `nightModeSwitchName` | `Night Mode` | Name for the Night switch. |
 | `pollenModeSwitchName` | `Pollen Mode` | Name for the Pollen switch. |
 | `realizeModeSwitchName` | `Realize Mode` | Name for the Realize switch. |
-
-## HomeKit Mapping
-
-- Power:
-  - HomeKit `Active`
-  - MQTT `operationStatus`
-- Mode:
-  - HomeKit `TargetAirPurifierState`
-  - Sharp `unknown_F3` operation mode
-- Fan speed:
-  - HomeKit `RotationSpeed`
-  - low / medium / high map to Sharp silent / medium / high modes
-- Special modes:
-  - HomeKit switches for Night, Pollen, and Realize
-  - Auto, Silent, Medium, and High stay mapped to the standard AirPurifier controls
-- Humidity:
-  - HomeKit `HumiditySensor`
-  - parsed from `unknown_F1`
-- Humidifier:
-  - HomeKit `HumidifierDehumidifier`
-  - controlled through Sharp `unknown_F3`
 
 ## Development
 
