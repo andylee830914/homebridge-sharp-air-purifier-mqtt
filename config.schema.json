@@ -1,0 +1,78 @@
+{
+  "pluginAlias": "SharpAirPurifierMqtt",
+  "pluginType": "platform",
+  "headerDisplay": "Sharp Air Purifier over MQTT (echonetlite2mqtt)",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Platform Name",
+        "type": "string",
+        "default": "Sharp Air Purifier MQTT"
+      },
+      "brokerUrl": {
+        "title": "MQTT Broker URL",
+        "type": "string",
+        "description": "MQTT broker URL used by echonetlite2mqtt.",
+        "default": "mqtt://YOUR_MQTT_HOST:1883"
+      },
+      "username": {
+        "title": "MQTT Username",
+        "type": "string"
+      },
+      "password": {
+        "title": "MQTT Password",
+        "type": "string",
+        "format": "password"
+      },
+      "clientId": {
+        "title": "MQTT Client ID",
+        "type": "string"
+      },
+      "deviceId": {
+        "title": "echonetlite2mqtt Device ID",
+        "type": "string",
+        "default": "YOUR_ECHONETLITE2MQTT_DEVICE_ID"
+      },
+      "topicPrefix": {
+        "title": "Topic Prefix",
+        "type": "string",
+        "description": "Base echonetlite2mqtt ELAPI topic prefix without the device ID.",
+        "default": "echonetlite2mqtt/elapi/v2/devices"
+      },
+      "accessoryName": {
+        "title": "Accessory Name",
+        "type": "string",
+        "default": "Sharp Air Purifier"
+      },
+      "enableHumiditySensor": {
+        "title": "Expose Humidity Sensor",
+        "type": "boolean",
+        "default": true
+      },
+      "enableTemperatureSensor": {
+        "title": "Expose Temperature Sensor",
+        "type": "boolean",
+        "description": "Uses the current unknown_F1 byte mapping. Keep disabled unless this mapping matches your model.",
+        "default": false
+      },
+      "enableAirQualitySensor": {
+        "title": "Expose Air Quality Sensor",
+        "type": "boolean",
+        "description": "Reserved for verified PM mappings. Disabled by default.",
+        "default": false
+      },
+      "enableHumidifierService": {
+        "title": "Expose HumidifierDehumidifier",
+        "type": "boolean",
+        "description": "Uses the COCORO Air-compatible unknown_F3 0009 command family for humidifier ON/OFF.",
+        "default": true
+      }
+    },
+    "required": [
+      "name",
+      "brokerUrl",
+      "deviceId"
+    ]
+  }
+}
