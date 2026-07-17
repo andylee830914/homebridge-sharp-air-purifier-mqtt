@@ -4,7 +4,7 @@ const {
   airflowToOperationMode,
   buildOperationModeSetPayload,
 } = require("./humidifier-codec");
-const { parseUnknownProperties } = require("./unknown-properties-parser");
+const { parseEchonetProperties } = require("./echonet-properties-parser");
 
 const SPECIAL_OPERATION_MODES = [
   { mode: "night", name: "Night Mode", subtype: "mode-night" },
@@ -22,6 +22,7 @@ class SharpAirPurifierAccessory {
     this.humidityService = null;
     this.temperatureService = null;
     this.airQualityService = null;
+    this.roomLightService = null;
     this.humidifierService = null;
     this.modeSwitchServices = {};
   }
@@ -91,6 +92,18 @@ class SharpAirPurifierAccessory {
       this.removeServiceIfPresent(accessory.getService(this.api.hap.Service.AirQualitySensor));
     }
 
+    let roomLightService = null;
+    if (this.platform.enableRoomLightSensor) {
+      roomLightService = accessory.getServiceById(this.api.hap.Service.LightSensor, "room-light")
+        || accessory.addService(this.api.hap.Service.LightSensor, "Room Light", "room-light");
+      this.setServiceDisplayName(roomLightService, "Room Light");
+      roomLightService.getCharacteristic(this.api.hap.Characteristic.CurrentAmbientLightLevel)
+        .setProps({ minValue: 0.0001, maxValue: 100000, minStep: 0.0001 })
+        .onGet(() => this.getRoomLightLevel());
+    } else {
+      this.removeServiceIfPresent(accessory.getServiceById(this.api.hap.Service.LightSensor, "room-light"));
+    }
+
     let humidifierService = null;
     if (this.platform.enableHumidifierService) {
       humidifierService = accessory.getServiceById(this.api.hap.Service.HumidifierDehumidifier, "humidifier")
@@ -102,7 +115,7 @@ class SharpAirPurifierAccessory {
 
       humidifierService.getCharacteristic(this.api.hap.Characteristic.CurrentHumidifierDehumidifierState)
         .setProps({ minValue: 0, maxValue: 2, validValues: [0, 1, 2] })
-        .onGet(() => this.platform.state.humidifierEnabled ? 2 : 0);
+        .onGet(() => this.getCurrentHumidifierState());
 
       humidifierService.getCharacteristic(this.api.hap.Characteristic.TargetHumidifierDehumidifierState)
         .setProps({ minValue: 1, maxValue: 1, validValues: [1] })
@@ -110,7 +123,26 @@ class SharpAirPurifierAccessory {
         .onGet(() => this.api.hap.Characteristic.TargetHumidifierDehumidifierState.HUMIDIFIER);
 
       humidifierService.getCharacteristic(this.api.hap.Characteristic.CurrentRelativeHumidity)
-        .onGet(() => this.getRequiredNumber(this.platform.state.humidity));
+        .onGet(() => this.getHumidifierCurrentHumidity());
+
+      if (this.api.hap.Characteristic.RelativeHumidityHumidifierThreshold) {
+        const thresholdCharacteristic = humidifierService.getCharacteristic(this.api.hap.Characteristic.RelativeHumidityHumidifierThreshold);
+        thresholdCharacteristic
+          .onSet(() => {
+            thresholdCharacteristic.updateValue(this.getHumidifierThreshold());
+          })
+          .onGet(() => this.getHumidifierThreshold());
+        humidifierService.setCharacteristic(
+          this.api.hap.Characteristic.RelativeHumidityHumidifierThreshold,
+          this.getHumidifierThreshold(),
+        );
+      }
+
+      if (this.api.hap.Characteristic.WaterLevel) {
+        humidifierService.getCharacteristic(this.api.hap.Characteristic.WaterLevel)
+          .setProps({ minValue: 0, maxValue: 100, minStep: 1 })
+          .onGet(() => this.getWaterLevel());
+      }
     } else {
       this.removeServiceIfPresent(accessory.getServiceById(this.api.hap.Service.HumidifierDehumidifier, "humidifier"));
     }
@@ -137,6 +169,7 @@ class SharpAirPurifierAccessory {
     this.humidityService = humidityService;
     this.temperatureService = temperatureService;
     this.airQualityService = airQualityService;
+    this.roomLightService = roomLightService;
     this.humidifierService = humidifierService;
     this.modeSwitchServices = modeSwitchServices;
     this.pushStateToHomeKit();
@@ -203,7 +236,7 @@ class SharpAirPurifierAccessory {
     }
 
     this.platform.state.unknownRaw[key] = rawPayload;
-    const parsed = parseUnknownProperties(this.platform.state.unknownRaw, this.platform.unknownMapping);
+    const parsed = parseEchonetProperties(this.platform.state.unknownRaw, this.platform.unknownMapping);
     this.platform.state.unknownParsed = parsed;
     if (this.platform.enableTemperatureSensor && parsed.derived.temperatureC != null) {
       this.platform.state.temperature = this.clampTemperature(parsed.derived.temperatureC);
@@ -217,6 +250,17 @@ class SharpAirPurifierAccessory {
     this.platform.state.dust = parsed.derived.dust ?? this.platform.state.dust;
     this.platform.state.pm25 = parsed.derived.pm25 ?? this.platform.state.pm25;
     this.platform.state.smell = parsed.derived.smell ?? this.platform.state.smell;
+    this.platform.state.waterTankSignal = parsed.derived.waterTankSignal ?? this.platform.state.waterTankSignal;
+    this.platform.state.roomLightOn = parsed.derived.roomLightOn ?? this.platform.state.roomLightOn;
+    this.platform.state.filterNeedsCleaning = parsed.derived.filterNeedsCleaning ?? this.platform.state.filterNeedsCleaning;
+    this.platform.state.filterState = parsed.derived.filterState ?? this.platform.state.filterState;
+    this.platform.state.humidifierState = parsed.derived.humidifierState ?? this.platform.state.humidifierState;
+    if (parsed.derived.humidifierActive != null) {
+      this.platform.state.humidifierActive = parsed.derived.humidifierActive;
+    }
+    if (parsed.derived.humidifierNoWater != null) {
+      this.platform.state.humidifierNoWater = parsed.derived.humidifierNoWater;
+    }
     if (parsed.derived.humidifierEnabled != null) {
       this.platform.state.humidifierEnabled = parsed.derived.humidifierEnabled;
     }
@@ -463,6 +507,13 @@ class SharpAirPurifierAccessory {
     throw new this.api.hap.HapStatusError(this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
   }
 
+  getHumidifierCurrentHumidity() {
+    if (typeof this.platform.state.humidity === "number" && Number.isFinite(this.platform.state.humidity)) {
+      return this.platform.state.humidity;
+    }
+    return this.getHumidifierThreshold();
+  }
+
   getAirQualityLevel() {
     const pm25 = this.platform.state.pm25;
     const C = this.api.hap.Characteristic;
@@ -482,6 +533,41 @@ class SharpAirPurifierAccessory {
       return C.AirQuality.INFERIOR;
     }
     return C.AirQuality.POOR;
+  }
+
+  getRoomLightLevel() {
+    if (this.platform.state.roomLightOn === true) {
+      return 100;
+    }
+    if (this.platform.state.roomLightOn === false) {
+      return 0.0001;
+    }
+    throw new this.api.hap.HapStatusError(this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+  }
+
+  getWaterLevel() {
+    if (this.platform.state.humidifierState === "no_water") {
+      return 0;
+    }
+    if (this.platform.state.waterTankSignal === "ok") {
+      return 100;
+    }
+    if (this.platform.state.waterTankSignal === "low") {
+      return 10;
+    }
+    throw new this.api.hap.HapStatusError(this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+  }
+
+  getHumidifierThreshold() {
+    return 55;
+  }
+
+  getOptionalWaterLevel() {
+    try {
+      return this.getWaterLevel();
+    } catch (err) {
+      return null;
+    }
   }
 
   setTargetHumidifierState(value) {
@@ -504,6 +590,14 @@ class SharpAirPurifierAccessory {
     this.airService.updateCharacteristic(C.CurrentAirPurifierState, this.platform.state.operationStatus ? 2 : 0);
     this.airService.updateCharacteristic(C.TargetAirPurifierState, this.platform.state.targetAirPurifierState);
     this.airService.updateCharacteristic(C.RotationSpeed, this.platform.state.rotationSpeed);
+    if (C.FilterChangeIndication && this.platform.state.filterNeedsCleaning != null) {
+      this.airService.updateCharacteristic(
+        C.FilterChangeIndication,
+        this.platform.state.filterNeedsCleaning
+          ? C.FilterChangeIndication.CHANGE_FILTER
+          : C.FilterChangeIndication.FILTER_OK,
+      );
+    }
 
     if (this.humidityService) {
       if (typeof this.platform.state.humidity === "number" && Number.isFinite(this.platform.state.humidity)) {
@@ -524,20 +618,37 @@ class SharpAirPurifierAccessory {
       }
     }
 
+    if (this.roomLightService && typeof this.platform.state.roomLightOn === "boolean") {
+      this.roomLightService.updateCharacteristic(C.CurrentAmbientLightLevel, this.getRoomLightLevel());
+    }
+
     if (this.humidifierService) {
       this.humidifierService.updateCharacteristic(C.Active, this.platform.state.humidifierEnabled ? C.Active.ACTIVE : C.Active.INACTIVE);
       this.humidifierService.updateCharacteristic(
         C.CurrentHumidifierDehumidifierState,
-        this.platform.state.humidifierEnabled
-          ? C.CurrentHumidifierDehumidifierState.HUMIDIFYING
-          : C.CurrentHumidifierDehumidifierState.INACTIVE,
+        this.getCurrentHumidifierState(),
       );
+      if (C.StatusFault && this.platform.state.humidifierState != null) {
+        this.humidifierService.updateCharacteristic(
+          C.StatusFault,
+          this.platform.state.humidifierState === "no_water"
+            ? C.StatusFault.GENERAL_FAULT
+            : C.StatusFault.NO_FAULT,
+        );
+      }
       this.humidifierService.updateCharacteristic(
         C.TargetHumidifierDehumidifierState,
         C.TargetHumidifierDehumidifierState.HUMIDIFIER,
       );
       if (typeof this.platform.state.humidity === "number" && Number.isFinite(this.platform.state.humidity)) {
         this.humidifierService.updateCharacteristic(C.CurrentRelativeHumidity, this.platform.state.humidity);
+      }
+      if (C.RelativeHumidityHumidifierThreshold) {
+        this.humidifierService.updateCharacteristic(C.RelativeHumidityHumidifierThreshold, this.getHumidifierThreshold());
+      }
+      const waterLevel = this.getOptionalWaterLevel();
+      if (C.WaterLevel && waterLevel != null) {
+        this.humidifierService.updateCharacteristic(C.WaterLevel, waterLevel);
       }
     }
 
@@ -547,6 +658,17 @@ class SharpAirPurifierAccessory {
         service.updateCharacteristic(C.On, this.platform.state.operationMode === item.mode);
       }
     }
+  }
+
+  getCurrentHumidifierState() {
+    const C = this.api.hap.Characteristic.CurrentHumidifierDehumidifierState;
+    if (!this.platform.state.humidifierEnabled) {
+      return C.INACTIVE;
+    }
+    if (this.platform.state.humidifierActive) {
+      return C.HUMIDIFYING;
+    }
+    return C.IDLE ?? C.HUMIDIFYING;
   }
 }
 

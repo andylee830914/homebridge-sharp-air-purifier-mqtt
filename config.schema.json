@@ -62,10 +62,16 @@
         "description": "Expose PM2.5 using Sharp unknown_F1 byte 28. Disabled by default.",
         "default": false
       },
+      "enableRoomLightSensor": {
+        "title": "Expose Room Light Sensor",
+        "type": "boolean",
+        "description": "Expose Sharp unknown_F2 byte 20 as a HomeKit Light Sensor. Uses 100 lux for on and 0.0001 lux for off.",
+        "default": false
+      },
       "refreshIntervalSeconds": {
         "title": "Sensor Refresh Interval",
         "type": "number",
-        "description": "Seconds between unknown_F1 refresh requests for PM2.5, humidity, and temperature. Set to 0 to disable polling.",
+        "description": "Seconds between unknown_F1 and unknown_F2 refresh requests for sensors, filter state, and humidifier runtime state. Set to 0 to disable polling.",
         "minimum": 0,
         "default": 60
       },

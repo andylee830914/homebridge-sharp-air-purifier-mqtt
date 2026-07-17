@@ -59,6 +59,7 @@ npm install -g /path/to/homebridge-sharp-air-purifier-mqtt-0.1.0.tgz
       "enableHumiditySensor": true,
       "enableTemperatureSensor": false,
       "enableAirQualitySensor": false,
+      "enableRoomLightSensor": false,
       "refreshIntervalSeconds": 60,
       "enableHumidifierService": true,
       "enableModeSwitches": true,
@@ -83,12 +84,27 @@ npm install -g /path/to/homebridge-sharp-air-purifier-mqtt-0.1.0.tgz
 | `enableHumiditySensor` | `true` | Reads humidity from Sharp `unknown_F1`. |
 | `enableTemperatureSensor` | `false` | Reads temperature from Sharp `unknown_F1`. |
 | `enableAirQualitySensor` | `false` | Reads PM2.5 from Sharp `unknown_F1` byte 28. |
-| `refreshIntervalSeconds` | `60` | Requests `unknown_F1` on this interval for PM2.5, humidity, and temperature. Set to `0` to disable polling. |
+| `enableRoomLightSensor` | `false` | Exposes room light state from Sharp `unknown_F2` byte 20 as a HomeKit light sensor. Uses `100` lux for on and `0.0001` lux for off. |
+| `refreshIntervalSeconds` | `60` | Requests `unknown_F1` and `unknown_F2` on this interval for PM2.5, humidity, temperature, filter state, and humidifier runtime state. Set to `0` to disable polling. |
 | `enableHumidifierService` | `true` | Exposes humidifier ON/OFF control. |
 | `enableModeSwitches` | `true` | Exposes Night, Pollen, and Realize mode switches. |
 | `nightModeSwitchName` | `Night Mode` | Name for the Night switch. |
 | `pollenModeSwitchName` | `Pollen Mode` | Name for the Pollen switch. |
 | `realizeModeSwitchName` | `Realize Mode` | Name for the Realize switch. |
+
+### Humidifier Runtime State
+
+When `enableHumidifierService` is enabled, the plugin reads Sharp `unknown_F2`
+to expose humidifier runtime details in HomeKit:
+
+| HomeKit water level | Meaning |
+| --- | --- |
+| `100%` | Water is available. |
+| `10%` | Probably low or empty, but the device is not currently blocked from humidifying. |
+| `0%` | The device cannot humidify because of the water supply state. This also sets `StatusFault`. |
+
+`RelativeHumidityHumidifierThreshold` is fixed at 55% for HomeKit. The device
+itself still controls whether it is idle or actively humidifying.
 
 ## Development
 
@@ -97,5 +113,5 @@ npm install
 npm test
 ```
 
-The tests cover payload generation, Sharp unknown-property parsing, and the
+The tests cover payload generation, Sharp ECHONET property parsing, and the
 HomeKit-to-MQTT command path.

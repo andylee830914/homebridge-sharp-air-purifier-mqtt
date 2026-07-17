@@ -20,7 +20,16 @@ function createFakeApi() {
     },
     CurrentHumidifierDehumidifierState: {
       INACTIVE: 0,
+      IDLE: 1,
       HUMIDIFYING: 2,
+    },
+    FilterChangeIndication: {
+      FILTER_OK: 0,
+      CHANGE_FILTER: 1,
+    },
+    StatusFault: {
+      NO_FAULT: 0,
+      GENERAL_FAULT: 1,
     },
     TargetAirPurifierState: {
       MANUAL: 0,
@@ -29,6 +38,9 @@ function createFakeApi() {
     TargetHumidifierDehumidifierState: {
       HUMIDIFIER: 1,
     },
+    RelativeHumidityHumidifierThreshold: {},
+    WaterLevel: {},
+    CurrentAmbientLightLevel: {},
     ConfiguredName: {},
     Name: {},
     On: {},
@@ -90,7 +102,14 @@ function createPlatform(overrides = {}) {
       smell: null,
       pm25: null,
       humidifierEnabled: false,
+      humidifierActive: false,
+      humidifierNoWater: false,
+      humidifierState: null,
       humidifierRaw: null,
+      waterTankSignal: null,
+      roomLightOn: null,
+      filterNeedsCleaning: null,
+      filterState: null,
       unknownRaw: {
         unknown_F1: null,
         unknown_F2: null,
@@ -102,12 +121,16 @@ function createPlatform(overrides = {}) {
     },
     unknownMapping: {
       humidifierF3Index: 15,
+      waterTankSignalF2Index: 19,
+      roomLightF2Index: 20,
+      filterStateF2Index: 23,
       humidifierF2Index: 24,
       airModeIndexF3: 4,
     },
     enableHumiditySensor: true,
     enableTemperatureSensor: true,
     enableAirQualitySensor: false,
+    enableRoomLightSensor: false,
     enableHumidifierService: true,
     publish(topic, payload) {
       publishes.push({ topic, payload });
@@ -183,6 +206,7 @@ test("platform requests unknown_F1 during sensor refresh", () => {
 
   assert.deepEqual(publishes, [
     { topic: "echonetlite2mqtt/elapi/v2/devices/device-1/properties/unknown_F1/request", payload: "" },
+    { topic: "echonetlite2mqtt/elapi/v2/devices/device-1/properties/unknown_F2/request", payload: "" },
   ]);
 });
 
@@ -311,6 +335,10 @@ test("echonetlite2mqtt state topics update HomeKit-facing state", () => {
     platform.topics.humidifierState,
     Buffer.from("010100001400000000000000000000ff0000000000000000000000"),
   );
+  accessory.updateFromMqtt(
+    platform.topics.unknownF2State,
+    Buffer.from("20000000000000000000000000000000000002ff0005000181ff0013010200000000000000000000"),
+  );
 
   assert.equal(platform.state.operationStatus, true);
   assert.equal(platform.state.targetAirPurifierState, platform.api.hap.Characteristic.TargetAirPurifierState.MANUAL);
@@ -320,4 +348,57 @@ test("echonetlite2mqtt state topics update HomeKit-facing state", () => {
   assert.equal(platform.state.pm25, 0);
   assert.equal(platform.state.operationMode, "silent");
   assert.equal(platform.state.humidifierEnabled, true);
+  assert.equal(platform.state.humidifierActive, true);
+  assert.equal(platform.state.humidifierNoWater, false);
+  assert.equal(platform.state.humidifierState, "humidifying");
+  assert.equal(platform.state.waterTankSignal, "ok");
+  assert.equal(platform.state.roomLightOn, false);
+  assert.equal(platform.state.filterNeedsCleaning, true);
+  assert.equal(platform.state.filterState, "needs_cleaning");
+});
+
+test("room light state maps to HomeKit light sensor lux values", () => {
+  const { accessory, platform } = createPlatform();
+
+  platform.state.roomLightOn = true;
+  assert.equal(accessory.getRoomLightLevel(), 100);
+
+  platform.state.roomLightOn = false;
+  assert.equal(accessory.getRoomLightLevel(), 0.0001);
+
+  platform.state.roomLightOn = null;
+  assert.throws(
+    () => accessory.getRoomLightLevel(),
+    (err) => err.status === platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE,
+  );
+});
+
+test("humidifier state maps to HomeKit current state and water level", () => {
+  const { accessory, platform } = createPlatform();
+  const C = platform.api.hap.Characteristic;
+
+  platform.state.humidifierEnabled = true;
+  platform.state.humidifierActive = false;
+  platform.state.humidifierState = "idle";
+  platform.state.waterTankSignal = "ok";
+  assert.equal(accessory.getCurrentHumidifierState(), C.CurrentHumidifierDehumidifierState.IDLE);
+  assert.equal(accessory.getWaterLevel(), 100);
+
+  platform.state.humidifierActive = true;
+  platform.state.humidifierState = "humidifying";
+  assert.equal(accessory.getCurrentHumidifierState(), C.CurrentHumidifierDehumidifierState.HUMIDIFYING);
+
+  platform.state.humidifierActive = false;
+  platform.state.humidifierState = "idle";
+  platform.state.waterTankSignal = "low";
+  assert.equal(accessory.getWaterLevel(), 10);
+
+  platform.state.humidifierState = "no_water";
+  assert.equal(accessory.getWaterLevel(), 0);
+});
+
+test("humidifier threshold is forced to 55 percent", () => {
+  const { accessory } = createPlatform();
+
+  assert.equal(accessory.getHumidifierThreshold(), 55);
 });

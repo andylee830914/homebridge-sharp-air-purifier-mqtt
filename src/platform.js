@@ -25,6 +25,7 @@ class SharpAirPurifierPlatform {
     this.enableHumiditySensor = this.config.enableHumiditySensor !== false;
     this.enableTemperatureSensor = this.config.enableTemperatureSensor === true;
     this.enableAirQualitySensor = this.config.enableAirQualitySensor === true;
+    this.enableRoomLightSensor = this.config.enableRoomLightSensor === true;
     this.enableHumidifierService = this.config.enableHumidifierService !== false;
     this.enableModeSwitches = this.config.enableModeSwitches !== false;
     this.refreshIntervalSeconds = this.normalizeRefreshInterval(this.config.refreshIntervalSeconds);
@@ -35,6 +36,9 @@ class SharpAirPurifierPlatform {
     };
     this.unknownMapping = {
       humidifierF3Index: 15,
+      waterTankSignalF2Index: 19,
+      roomLightF2Index: 20,
+      filterStateF2Index: 23,
       humidifierF2Index: 24,
       airModeIndexF3: 4,
     };
@@ -57,7 +61,14 @@ class SharpAirPurifierPlatform {
       smell: null,
       pm25: null,
       humidifierEnabled: false,
+      humidifierActive: false,
+      humidifierNoWater: false,
+      humidifierState: null,
       humidifierRaw: null,
+      waterTankSignal: null,
+      roomLightOn: null,
+      filterNeedsCleaning: null,
+      filterState: null,
       unknownRaw: {
         unknown_F1: null,
         unknown_F2: null,
@@ -159,6 +170,7 @@ class SharpAirPurifierPlatform {
 
   publishSensorRefresh() {
     this.publish(`${this.topics.unknownF1State}/request`, "");
+    this.publish(`${this.topics.unknownF2State}/request`, "");
   }
 
   startRefreshTimer() {

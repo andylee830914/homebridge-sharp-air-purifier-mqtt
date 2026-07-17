@@ -103,16 +103,82 @@ function parseF2(raw, mapping) {
   }
 
   const bytes = Buffer.from(base.bytes);
+  const waterTankSignalByte = getByte(bytes, mapping.waterTankSignalF2Index);
+  const roomLightByte = getByte(bytes, mapping.roomLightF2Index);
+  const filterStateByte = getByte(bytes, mapping.filterStateF2Index);
   const humidifierMode = getByte(bytes, mapping.humidifierF2Index);
+  const humidifierEnabled = humidifierMode == null ? null : (humidifierMode & 0x80) !== 0;
+  const humidifierActive = humidifierMode == null ? null : (humidifierMode & 0x01) !== 0;
+  const humidifierNoWater = humidifierMode == null ? null : humidifierMode === 0x82;
+
+  let humidifierState = null;
+  if (humidifierMode != null) {
+    if (humidifierMode === 0x00) {
+      humidifierState = "off";
+    } else if (humidifierMode === 0x82) {
+      humidifierState = "no_water";
+    } else if (humidifierActive) {
+      humidifierState = "humidifying";
+    } else if (humidifierEnabled) {
+      humidifierState = "idle";
+    } else {
+      humidifierState = `unknown_0x${humidifierMode.toString(16).padStart(2, "0")}`;
+    }
+  }
 
   return {
     ...base,
     mapped: {
+      waterTankSignalByte,
+      waterTankSignal: waterTankSignalByte == null
+        ? null
+        : waterTankSignalByte === 0xff
+          ? "ok"
+          : waterTankSignalByte === 0x00
+            ? "low"
+            : `unknown_0x${waterTankSignalByte.toString(16).padStart(2, "0")}`,
+      roomLightByte,
+      roomLightOn: roomLightByte == null
+        ? null
+        : roomLightByte === 0xff
+          ? true
+          : roomLightByte === 0x00
+            ? false
+            : null,
+      roomLightState: roomLightByte == null
+        ? null
+        : roomLightByte === 0xff
+          ? "on"
+          : roomLightByte === 0x00
+            ? "off"
+            : `unknown_0x${roomLightByte.toString(16).padStart(2, "0")}`,
+      filterStateByte,
+      filterNeedsCleaning: filterStateByte == null
+        ? null
+        : filterStateByte === 0x01
+          ? true
+          : filterStateByte === 0x00
+            ? false
+            : null,
+      filterState: filterStateByte == null
+        ? null
+        : filterStateByte === 0x00
+          ? "ok"
+          : filterStateByte === 0x01
+            ? "needs_cleaning"
+            : `unknown_0x${filterStateByte.toString(16).padStart(2, "0")}`,
       humidifierF2Flag: humidifierMode,
-      humidifierEnabled: humidifierMode == null ? null : (humidifierMode & 0x80) === 0x80,
+      humidifierF2Byte: humidifierMode,
+      humidifierEnabled,
+      humidifierActive,
+      humidifierNoWater,
+      humidifierState,
       confidence: "empirical",
       source: "unknown_F2",
       indexes: {
+        waterTankSignalF2Index: mapping.waterTankSignalF2Index,
+        roomLightF2Index: mapping.roomLightF2Index,
+        filterStateF2Index: mapping.filterStateF2Index,
         humidifierF2Index: mapping.humidifierF2Index,
       },
     },
@@ -189,9 +255,12 @@ function parseFD(raw) {
   };
 }
 
-function parseUnknownProperties(rawMap, mappingOverrides = {}) {
+function parseEchonetProperties(rawMap, mappingOverrides = {}) {
   const mapping = {
     humidifierF3Index: 15,
+    waterTankSignalF2Index: 19,
+    roomLightF2Index: 20,
+    filterStateF2Index: 23,
     humidifierF2Index: 24,
     airModeIndexF3: 4,
     ...mappingOverrides,
@@ -221,7 +290,15 @@ function parseUnknownProperties(rawMap, mappingOverrides = {}) {
       pciSensor: f1.mapped?.pciSensor ?? null,
       filterUsage: f1.mapped?.filterUsage ?? null,
       operationMode: f3.mapped?.operationMode ?? null,
-      humidifierEnabled: f3.mapped?.humidifierEnabled ?? f2.mapped?.humidifierEnabled ?? null,
+      waterTankSignal: f2.mapped?.waterTankSignal ?? null,
+      roomLightOn: f2.mapped?.roomLightOn ?? null,
+      roomLightState: f2.mapped?.roomLightState ?? null,
+      filterNeedsCleaning: f2.mapped?.filterNeedsCleaning ?? null,
+      filterState: f2.mapped?.filterState ?? null,
+      humidifierState: f2.mapped?.humidifierState ?? null,
+      humidifierActive: f2.mapped?.humidifierActive ?? null,
+      humidifierNoWater: f2.mapped?.humidifierNoWater ?? null,
+      humidifierEnabled: f2.mapped?.humidifierEnabled ?? f3.mapped?.humidifierEnabled ?? null,
     },
   };
 }
@@ -229,5 +306,6 @@ function parseUnknownProperties(rawMap, mappingOverrides = {}) {
 module.exports = {
   normalizeHex,
   toBytes,
-  parseUnknownProperties,
+  parseEchonetProperties,
+  parseUnknownProperties: parseEchonetProperties,
 };
